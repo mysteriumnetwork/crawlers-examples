@@ -15,20 +15,6 @@ namespace Crawler
             this.uri = uri;
             this.depth = depth;
         }
-
-        public override bool Equals(object ob)
-        {
-            if (ob is Link)
-            {
-                Link c = (Link)ob;
-                return depth == c.depth && uri == c.uri;
-            }
-            return false;            
-        }
-
-        public override int GetHashCode() {
-            return uri.GetHashCode() ^ depth.GetHashCode();
-        }
     }
 
     class Crawler
@@ -80,6 +66,7 @@ namespace Crawler
             return newLinks;
         }
 
+        // Crawl a given site using breadth-first search algorithm
         public void crawl(string u)
         {
             jobs.Enqueue(new Link(u, 0));
