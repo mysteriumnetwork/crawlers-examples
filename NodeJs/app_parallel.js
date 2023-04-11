@@ -2,10 +2,12 @@ const request = require('request');
 const cheerio = require('cheerio');
 const axios = require('axios');
 const url = require('url');
+const Queue = require('async-parallel-queue');
+
 
 /* private */
 var visited = {}; // set
-var jobs = [];    // queue
+var jobs;         // queue
 var hosts = {};   // set
 const maxDepth = 1;
 const maxSites = 5;
@@ -49,28 +51,29 @@ async function collectUrls(uri) {
     return newLinks
 }
 
-// Crawl a given site using breadth-first search algorithm
-async function crawl(root) {
-    jobs.push({ url: root, depth: 0 })
+async function taskHandler(job) {
+    console.log("visit> %s %s", job.depth, job.url)
 
-    while (jobs.length > 0) {
-        var j = jobs.pop()
-
-        console.log("visit> %s %s", j.depth, j.url)
-        var list = await collectUrls(j.url)
-        for (let e in list) {
-            if (!(e in visited)) {
-                if (maxSitesConstraint(e)) {
-                    continue
-                }
-                if (j.depth + 1 <= maxDepth) {
-                    let newJob = { url: e, depth: j.depth + 1 }
-                    visited[e] = newJob
-                    jobs.push(newJob)
-                }
+    var list = await collectUrls(job.url)
+    for (let e in list) {
+        if (!(e in visited)) {
+            if (maxSitesConstraint(e)) {
+                continue
+            }
+            if (job.depth + 1 <= maxDepth) {
+                let newJob = { url: e, depth: job.depth + 1 }
+                visited[e] = newJob
+                jobs.add(async () => taskHandler(newJob));
             }
         }
     }
+}
+
+// Crawl a given site using breadth-first search algorithm
+async function crawl(root) {
+    jobs = new Queue({ concurrency: 10 });
+    jobs.add(async () => taskHandler({ url: root, depth: 0 }));
+    await jobs.waitIdle();
 }
 
 async function main() {
