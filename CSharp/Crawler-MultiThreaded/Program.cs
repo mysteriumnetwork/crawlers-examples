@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using HtmlAgilityPack;
 
 namespace Crawler
@@ -36,8 +37,11 @@ namespace Crawler
         private Dictionary<string, Link> visited = new Dictionary<string, Link>();
         private Queue<Link> jobs = new Queue<Link>();
         private ISet<string> hosts = new HashSet<string>();
-        const int maxDepth = 1;
-        const int maxSites = 5;
+        const int maxDepth = 2;
+        const int maxSites = 10;
+
+        private WaitCallback callback;
+        private CountdownEvent jobsEvent;
 
         // maxSitesConstraint returns true if we have to skip the given link
         private bool maxSitesConstraint(string e)
@@ -79,34 +83,42 @@ namespace Crawler
             }
             return newLinks;
         }
-
-        public void crawl(string u)
+        
+        private void TaskHandler(Object ob)
         {
-            jobs.Enqueue(new Link(u, 0));
+            Link j = (Link)ob;
 
-            while (jobs.Count() > 0)
+            Console.WriteLine(string.Format("visit> {1} {0}", j.uri, j.depth));
+            var list = this.collectLinks(j.uri);
+            foreach (var e in list)
             {
-                var j = jobs.Dequeue();
-
-                Console.WriteLine(string.Format("visit> {1} {0}", j.uri, j.depth));
-                var list = this.collectLinks(j.uri);
-                foreach (var e in list)
+                if (!visited.ContainsKey(e))
                 {
-                    if (!visited.ContainsKey(e))
+                    if (this.maxSitesConstraint(e))
                     {
-                        if (this.maxSitesConstraint(e))
-                        {
-                            continue;
-                        }
-                        if (j.depth + 1 <= maxDepth)
-                        {
-                            var newJob = new Link(e, j.depth + 1);
-                            visited[e] = newJob;
-                            jobs.Enqueue(newJob);
-                        }
+                        continue;
+                    }
+                    if (j.depth + 1 <= maxDepth)
+                    {
+                        var newJob = new Link(e, j.depth + 1);
+                        visited[e] = newJob;
+                        ThreadPool.QueueUserWorkItem(callback, newJob);
+                        jobsEvent.AddCount(1);
                     }
                 }
             }
+            jobsEvent.Signal();
+        }
+
+        public void crawl(string u)
+        {
+            callback = new WaitCallback(TaskHandler);
+            jobsEvent = new CountdownEvent(1);
+
+            ThreadPool.SetMaxThreads(6, 300);
+            ThreadPool.SetMinThreads(6, 300);
+            ThreadPool.QueueUserWorkItem(callback, new Link(u, 0));
+            jobsEvent.Wait();
         }
     }
 
