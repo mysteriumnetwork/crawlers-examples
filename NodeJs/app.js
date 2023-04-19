@@ -7,8 +7,7 @@ const url = require('url');
 var visited = {}; // set
 var jobs = [];    // queue
 var hosts = {};   // set
-const maxDepth = 1;
-const maxSites = 5;
+
 
 var numberOfKeys = function (o) { return Object.keys(o).length }
 
@@ -25,6 +24,24 @@ function maxSitesConstraint(e) {
     return false
 }
 
+function scrapData($) {
+    const cards = $("div.uitk-card.uitk-card-roundcorner-all")
+    cards.each((index, value) => {
+        const _l1 = $(value).find("div.uitk-card-content-section > div > div > h4.uitk-heading")
+        _l1.each((index, value) => {
+            console.log("label>", $(value).text())
+        })
+        const _l2 = $(value).find("span > div.uitk-text.uitk-type-600")
+        _l2.each((index, value) => {
+            console.log("price>", $(value).text())
+        })
+        const _l3 = $(value).find("div.uitk-price-lockup > section > span.uitk-lockup-price")
+        _l3.each((index, value) => {
+            console.log("price>", $(value).text())
+        })
+    })
+}
+
 async function collectUrls(uri) {
     let newLinks = {}
 
@@ -34,6 +51,9 @@ async function collectUrls(uri) {
         return newLinks
     }
     const $ = cheerio.load(response.data)
+
+    scrapData($)
+
     const links = $("a")
     links.each((index, value) => {
         const l = $(value).attr("href")
@@ -73,8 +93,11 @@ async function crawl(root) {
     }
 }
 
+const maxDepth = 0;
+const maxSites = 1;
+
 async function main() {
-    await crawl('https://google.com')
+    await crawl('https://www.expedia.com/Hotel-Search?adults=2&destination=Tbilisi%2C%20Georgia&rooms=1')
 }
 
 main()
