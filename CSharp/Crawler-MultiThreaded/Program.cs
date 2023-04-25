@@ -16,6 +16,7 @@ namespace Crawler
         private IDictionary<string, byte> visited = new ConcurrentDictionary<string, byte>();
         private IDictionary<string, byte> hosts = new ConcurrentDictionary<string, byte>();
         private ConcurrentQueue<Link> queue;
+        private HttpClient client;
 
         // settings
         private int maxDepth = 0;
@@ -68,8 +69,9 @@ namespace Crawler
         {
             var newLinks = new HashSet<string>();
 
-            var hw = new HtmlWeb();
-            var doc = await hw.LoadFromWebAsync(link);
+            var s = await client.GetStringAsync(link);
+            var doc = new HtmlDocument();
+            doc.LoadHtml(s);
 
             scrapData(doc);
 
@@ -119,6 +121,17 @@ namespace Crawler
         {
             maxDepth = _maxDepth;
             maxSites = _maxSites;
+
+            var httpClientHandler = new HttpClientHandler
+            {
+                Proxy = new WebProxy
+                {
+                    Address = new Uri("http://localhost:8080"),
+                    BypassProxyOnLocal = false,
+                    UseDefaultCredentials = false,
+                }
+            };
+            client = new HttpClient(handler: httpClientHandler, disposeHandler: true);
            
             var maxThreads = 8;
             queue = new ConcurrentQueue<Link>();
