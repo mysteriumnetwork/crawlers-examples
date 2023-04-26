@@ -1,17 +1,35 @@
 const request = require('request');
-const cheerio = require('cheerio');
-const axios = require('axios');
 const url = require('url');
+const util = require('util');
+const cheerio = require('cheerio');
 const Queue = require('async-parallel-queue');
+let keepaliveAgent = require('keepalive-proxy-agent')
 
+let agent = new keepaliveAgent({proxy:{host:"localhost", port:8080}})
+var opts = {
+  'agent': agent
+}
+
+const requestPromise = util.promisify(request);
 
 /* private */
 var visited = {}; // set
 var jobs;         // queue
 var hosts = {};   // set
 
+function numberOfKeys(o) { return Object.keys(o).length }
 
-var numberOfKeys = function (o) { return Object.keys(o).length }
+async function retry(fn, n) {
+  for (let i = 0; i < n; i++) {
+    try {
+      return await fn();
+    } catch {
+      console.log('retry', i);
+    }
+  }
+  throw new Error(`Failed retrying ${n} times`);
+}
+
 
 // maxSitesConstraint returns true if we have to skip the given link
 function maxSitesConstraint(e) {
@@ -47,14 +65,13 @@ function scrapData($) {
 async function collectUrls(uri) {
     let newLinks = {}
 
-    let response = await axios(uri).catch((err) => console.log(err))
-    if (response.status !== 200) {
-        console.log("Error occurred while fetching data")
+    var response = await retry(() => requestPromise(uri, opts), 5);
+    if (response.statusCode !== 200) {
+        console.log("Error occurred while fetching data, status:", response.statusCode)
         return newLinks
     }
-    const $ = cheerio.load(response.data)
-    console.log("load ok>")
 
+    const $ = cheerio.load(response.body)
     scrapData($)
 
     const links = $("a")
