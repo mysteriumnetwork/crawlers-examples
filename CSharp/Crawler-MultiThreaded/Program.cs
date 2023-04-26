@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 
@@ -117,6 +115,8 @@ namespace Crawler
             }
         }
 
+        // _maxDepth - maximum depth of walk tree
+        // _maxSites - maximum number of sites to crawl, including an initail address
         public async Task Start(string u, int _maxDepth, int _maxSites)
         {
             maxDepth = _maxDepth;
@@ -144,7 +144,9 @@ namespace Crawler
                 {
                     while (queue.TryDequeue(out Link l))
                     {
+                        await RetryHelper.RetryOnExceptionAsync(5, TimeSpan.FromSeconds(5), async () => {
                             await TaskHandler(l);
+                        });
                     }
                 }));
             }
@@ -158,6 +160,10 @@ namespace Crawler
         {
 
             var c = new Crawler();
+
+            // where
+            // 0 - is a maximum depth of walk tree
+            // 1 - maximum number of sites to crawl, including an initail address
             c.Start("https://www.expedia.com/Hotel-Search?adults=2&destination=Tbilisi%2C%20Georgia&rooms=1", 0, 1)
                 .Wait();
         }

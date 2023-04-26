@@ -1,4 +1,7 @@
-﻿namespace Crawler
+﻿using System;
+using System.Threading.Tasks;
+
+namespace Crawler
 {
     class Link
     {
@@ -9,6 +12,35 @@
         {
             this.uri = uri;
             this.depth = depth;
+        }
+    }
+
+    public static class RetryHelper
+    {
+        public static async Task RetryOnExceptionAsync(
+            int times, TimeSpan delay, Func<Task> operation)
+        {
+            if (times <= 0)
+                throw new ArgumentOutOfRangeException(nameof(times));
+
+            var attempts = 0;
+            do
+            {
+                try
+                {
+                    attempts++;
+                    await operation();
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Exception on attempt {attempts} of {times}. Will retry after sleeping for {delay}.");
+                    if (attempts == times)
+                        throw ex;
+
+                    await Task.Delay(delay);
+                }
+            } while (true);
         }
     }
 }
