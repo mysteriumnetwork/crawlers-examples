@@ -7,7 +7,8 @@ let keepaliveAgent = require('keepalive-proxy-agent')
 
 let agent = new keepaliveAgent({proxy:{host:"localhost", port:8080}})
 var opts = {
-  'agent': agent
+  'agent': agent,
+  'headers': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36'},
 }
 
 const requestPromise = util.promisify(request);
@@ -18,14 +19,18 @@ var jobs;         // queue
 var hosts = {};   // set
 
 function numberOfKeys(o) { return Object.keys(o).length }
+function delay(time) {
+  return new Promise(resolve => setTimeout(resolve, time));
+}
 
 async function retry(fn, n) {
   for (let i = 0; i < n; i++) {
     try {
       return await fn();
-    } catch {
-      console.log('retry', i);
+    } catch (e) {
+      console.log('retry>', i, e.message, e.message == 'HTTP/1.1 503' ? '(Wrong Proxy Authentication)':'');
     }
+    await delay(3000);
   }
   throw new Error(`Failed retrying ${n} times`);
 }
@@ -92,18 +97,22 @@ async function collectUrls(uri) {
 async function taskHandler(job) {
     console.log("visit> %s %s", job.depth, job.url)
 
-    var list = await collectUrls(job.url)
-    for (let e in list) {
-        if (!(e in visited)) {
-            if (maxSitesConstraint(e)) {
-                continue
-            }
-            if (job.depth + 1 <= maxDepth) {
-                let newJob = { url: e, depth: job.depth + 1 }
-                visited[e] = newJob
-                jobs.add(async () => taskHandler(newJob));
+    try {
+        var list = await collectUrls(job.url)
+        for (let e in list) {
+            if (!(e in visited)) {
+                if (maxSitesConstraint(e)) {
+                    continue
+                }
+                if (job.depth + 1 <= maxDepth) {
+                    let newJob = { url: e, depth: job.depth + 1 }
+                    visited[e] = newJob
+                    jobs.add(async () => taskHandler(newJob));
+                }
             }
         }
+    } catch (e) {
+      console.log('Error >', e.message);
     }
 }
 
@@ -118,7 +127,8 @@ const maxDepth = 0;
 const maxSites = 1;
 
 async function main() {
-    await crawl('https://www.expedia.com/Hotel-Search?adults=2&destination=Tbilisi%2C%20Georgia&rooms=1')
+    let url = 'https://www.expedia.com/Hotel-Search?=one-key-onboarding-dialog&adults=2&children=&destination=Amsterdam%20City%20Centre%2C%20Amsterdam%2C%20North%20Holland%2C%20Netherlands&endDate=2023-05-19&latLong=52.371613%2C4.899732&mapBounds=&pwaDialog=&regionId=6200211&rooms=1&semdtl=&sort=RECOMMENDED&startDate=2023-05-18&theme=&useRewards=false&userIntent='
+    await crawl(url)
 }
 
 main()
